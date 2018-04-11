@@ -1,1 +1,0 @@
-# Wikipedia Map in Haskell
