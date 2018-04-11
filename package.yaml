@@ -1,7 +1,7 @@
 name:                wikipedia-map
 version:             0.1.0.0
 github:              "vaibhavnaagar/wikipedia-map"
-license:             BSD3
+license:             MIT
 author:              "Vaibhav Nagar"
 maintainer:          "vaibhavn@iitk.ac.in"
 copyright:           "2018 Vaibhav Nagar"
