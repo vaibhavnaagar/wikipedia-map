@@ -1,17 +1,30 @@
 module WikiAPIService
-    (
+    ( apiEndpoint,
+      apiRequest
     ) where
 
-
 import Control.Monad (void)
-import Network.URI (URI(..), URIAuth(..))
-import Network.HTTP (simpleHTTP, getRequest)
-import Network.HTTP.Base (rspBody, urlEncodeVars, Request(..), RequestMethod(..))
-import Network.HTTP.Headers (mkHeader, Header, HeaderName(..))
+import Network.HTTP.Client
+import Network.URI                 (URI(..), URIAuth(..))
+import Network.HTTP.Client.TLS     (tlsManagerSettings)
+import Network.HTTP.Base           (urlEncodeVars)
+import Network.HTTP.Types.Method   (methodGet)
+import Network.HTTP.Types.Status   (statusCode)
+import Network.HTTP.Client.Conduit (bodyReaderSource)
+import Data.Conduit                (connect)
+import Data.Conduit.Attoparsec     (sinkParser)
+import Data.Aeson.Parser           (json)
+import Data.Aeson.Types            (Parser(..), Value(..))
+import qualified Data.ByteString.Char8 as C
 
 
+-- wikipedia API endpoint
+apiEndpoint :: String
+apiEndpoint = "https://en.wikipedia.org/w/api.php"
+
+-- Create URI from queries (Not in use)
 generateURI :: [(String, String)] -> URI
-generateURI queries = URI { uriScheme = "http:",
+generateURI queries = URI { uriScheme = "https:",
                             uriAuthority = Just $ URIAuth { uriUserInfo = "",
                                                             uriRegName = "en.wikipedia.org",
                                                             uriPort = ""
@@ -21,39 +34,26 @@ generateURI queries = URI { uriScheme = "http:",
                             uriFragment = ""
                           }
 
+-- Create HTTPS GET request using api endpoint and list of queries
+generateRequest :: String -> [(String, String)] -> IO Request
+generateRequest endpoint queries = do
+  initRequest <- parseRequest endpoint
+  let request = initRequest { method = methodGet
+                            , secure = True
+                            , queryString = C.pack $ urlEncodeVars queries
+                            }
+  return request
+-- generateRequest queries = getRequest "https://en.wikipedia.org/w/api.php?format=json&action=parse&page=pizza&prop=text&section=0&redirects=1"
 
-generateRequest :: [(String, String)] -> Request String
--- generateRequest queries = Request { rqURI = generateURI queries,
---                                     rqMethod = GET,
---                                     rqHeaders = [mkHeader HdrContentLength "0", mkHeader HdrUserAgent "wikipedia-map/0.1"],
---                                     rqBody = ""
---                                   }
-generateRequest queries = getRequest "http://en.wikipedia.org/w/api.php?format=json&action=parse&page=pizza&prop=text&section=0&redirects=1"
-
--- rqHeaders = [mkHeader HdrUserAgent "wikipedia-map/0.1"],
-
-
-apiRequest :: [(String, String)] -> IO (Maybe String)
+-- Send HTTPS GET request to wikipedia API and get json data
+apiRequest :: [(String, String)] -> IO (Value)
 apiRequest queries = do
-  let request = generateRequest queries
-  print request
-  result <- simpleHTTP request
-  print result
-  case result of
-    Left _ -> return Nothing
-    Right response -> return $ Just (rspBody response)
-
-
--- sections :: IO (Maybe [String])
--- sections pg = do
---   let queries = [ ("format", "json")
---                 , ("action", "parse")
---                 , ("prop", "sections")
---                 , ("page", "pizza")
---                 ]
---   maybeResults <- apiRequest queries
---   return $ fmap (extractAllAttrValues "line") maybeResults
-
--- wikipedia API endpoint
-wikipediaAPI :: String
-wikipediaAPI = "https://en.wikipedia.org/w/api.php"
+  request <- generateRequest apiEndpoint queries
+  manager <- newManager tlsManagerSettings
+  jsonResponse <- let getResponse response = do
+                        putStrLn $ "The status code was: " ++ show (statusCode $ responseStatus response)
+                        value <- bodyReaderSource (responseBody response) `connect` sinkParser json
+                        return value
+                  in withResponse request manager getResponse
+  -- print jsonResponse
+  return jsonResponse
