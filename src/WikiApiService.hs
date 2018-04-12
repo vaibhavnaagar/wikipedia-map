@@ -1,9 +1,8 @@
-module WikiAPIService
+module WikiApiService
     ( apiEndpoint,
       apiRequest
     ) where
 
-import Control.Monad (void)
 import Network.HTTP.Client
 import Network.URI                 (URI(..), URIAuth(..))
 import Network.HTTP.Client.TLS     (tlsManagerSettings)
@@ -14,7 +13,7 @@ import Network.HTTP.Client.Conduit (bodyReaderSource)
 import Data.Conduit                (connect)
 import Data.Conduit.Attoparsec     (sinkParser)
 import Data.Aeson.Parser           (json)
-import Data.Aeson.Types            (Parser(..), Value(..))
+import Data.Aeson.Types            (Value(..))
 import qualified Data.ByteString.Char8 as C
 
 

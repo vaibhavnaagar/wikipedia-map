@@ -32,6 +32,9 @@ dependencies:
 - conduit
 - conduit-extra
 - http-conduit
+- unordered-containers
+- pandoc
+- pandoc-types
 
 library:
   source-dirs: src
