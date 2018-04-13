@@ -17,7 +17,7 @@ import Data.Aeson.Types            (Value(..))
 import qualified Data.ByteString.Char8 as C
 
 
--- wikipedia API endpoint
+-- Wikipedia API endpoint
 apiEndpoint :: String
 apiEndpoint = "https://en.wikipedia.org/w/api.php"
 
