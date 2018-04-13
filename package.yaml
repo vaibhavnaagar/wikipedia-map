@@ -33,8 +33,7 @@ dependencies:
 - conduit-extra
 - http-conduit
 - unordered-containers
-- pandoc
-- pandoc-types
+- html-parse
 
 library:
   source-dirs: src

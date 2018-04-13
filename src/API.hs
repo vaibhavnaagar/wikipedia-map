@@ -2,7 +2,7 @@ module API
     ( someFunc
     ) where
 
-import WikiAPIService (apiRequest)
+import WikiApiService (apiRequest)
 import WikiParser
 
 someFunc :: IO ()
