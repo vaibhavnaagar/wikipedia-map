@@ -1,6 +1,6 @@
 module WikiApiService
-    ( apiEndpoint,
-      apiRequest
+    ( apiEndpoint
+    , apiRequest
     ) where
 
 import Network.HTTP.Client

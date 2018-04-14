@@ -1,6 +1,7 @@
 module Main where
 
-import API
+import ServeApi (app)
+import Network.Wai.Handler.Warp
 
 main :: IO ()
-main = someFunc
+main = run 7777 app

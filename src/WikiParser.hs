@@ -1,42 +1,68 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, DeriveGeneric #-}
 module WikiParser
-    ( getWikiTitle,
-      getWikiText,
-      getWikiLinks,
-      parseHtml
+    ( getWikiTitle
+    , getWikiText
+    , getWikiLinks
+    , parseHtml
+    , WikiPage(..)
+    , WikiTitle(..)
+    , WikiText(..)
+    , WikiLinks(..)
     ) where
 
 import qualified Data.Aeson.Types as AT
 import qualified Data.HashMap.Strict as HS
 import qualified Data.Text as T
+import GHC.Generics (Generic)
+import Data.Aeson (ToJSON, FromJSON)
 import Text.HTML.Parser (parseTokens, Token(..), Attr(..))
 import WikiApiService (apiRequest)
 
 
+-- Data types
+data WikiPage = WikiPage
+  { wikiTitle :: T.Text,
+    wikiText  :: T.Text,
+    wikiLinks :: [T.Text]
+  } deriving (Generic, Show)
+
+instance FromJSON WikiPage
+instance ToJSON WikiPage
+
+newtype WikiTitle = WikiTitle T.Text deriving (Generic, Show)
+newtype WikiText  = WikiText T.Text deriving (Generic, Show)
+newtype WikiLinks = WikiLinks [T.Text] deriving (Generic, Show)
+
+instance ToJSON WikiTitle
+instance ToJSON WikiText
+instance ToJSON WikiLinks
+
+
 -- Get the accurate title of a page by querying wikipedia API from json data
-getWikiTitle :: Maybe AT.Value -> Maybe T.Text
+getWikiTitle :: Maybe AT.Value -> Maybe WikiTitle
 getWikiTitle jsonData = do
   AT.Object queryValPair <- jsonData
   AT.Object pageValPair  <- HS.lookup "query" queryValPair
   AT.Object idValPair    <- HS.lookup "pages" pageValPair
   let AT.Object titleValPair = snd $ head $ HS.toList idValPair
   AT.String title        <- HS.lookup "title" titleValPair
-  return title
+  return $ WikiTitle title
 
 --  Get HTML text of a wikipedia page from json data based on standard query
-getWikiText :: Maybe AT.Value -> Maybe T.Text
+getWikiText :: Maybe AT.Value -> Maybe WikiText
 getWikiText jsonData = do
   AT.Object parseValPair <- jsonData
   AT.Object keyValPair   <- HS.lookup "parse" parseValPair
   AT.Object textValPair  <- HS.lookup "text" keyValPair
   AT.String textVal      <- HS.lookup "*" textValPair
-  return textVal
+  return $ WikiText textVal
 
 -- Get all the wiki links present in paragraphs only in the form of accurate wiki titles
-getWikiLinks :: Maybe AT.Value -> Maybe [T.Text]
+getWikiLinks :: Maybe AT.Value -> Maybe WikiLinks
 getWikiLinks jsonData = do
-  tokens <- (parseHtml . getWikiText) jsonData
-  return $ extractAllLinksFast tokens False
+  WikiText htmlText <- getWikiText jsonData
+  tokens            <- parseHtml $ Just htmlText
+  return $ WikiLinks $ extractAllLinksFast tokens False
   -- return $ extractLinksFast tokens 2 False
   -- return $ extractLinks $ extractAllParagraphs tokens False
 
@@ -50,45 +76,48 @@ parseHtml htmlText = do
 extractParagraphs :: (Eq a, Fractional a) => [Token] -> a -> Bool -> [Token]
 extractParagraphs [] _ _ = []
 extractParagraphs _ 0 _  = []
-extractParagraphs (token:tokens) num False =
-      let
-        checkTag (TagOpen "p" _) = extractParagraphs tokens num True
-        checkTag _               = extractParagraphs tokens num False
-      in checkTag token
-extractParagraphs (token:tokens) num True
-      | token == TagClose "p" = extractParagraphs tokens (num - 1) False
-      | otherwise             = token:(extractParagraphs tokens num True)
+extractParagraphs (token:tokens) num False = case token of
+      TagOpen "p" _ -> extractParagraphs tokens num True
+      otherwise     -> extractParagraphs tokens num False
+extractParagraphs (token:tokens) num True = case token of
+      TagClose "p" -> extractParagraphs tokens (num - 1) False
+      otherwise    -> token:(extractParagraphs tokens num True)
 
 -- Extract all the paragraphs in the parsed HTML text
 extractAllParagraphs :: [Token] -> Bool -> [Token]
 extractAllParagraphs tokens bool = let inf = 1/0
                                    in extractParagraphs tokens inf bool
 
--- Extract all the links from the parsed HTML text
+-- Extract all the wiki links from the parsed HTML text
 extractLinks :: [Token] -> [T.Text]
 extractLinks [] = []
-extractLinks (token:tokens) =
-      let
-        checkTag (TagOpen "a" ((Attr "title" wikiLink):_)) = wikiLink:extractLinks tokens
-        checkTag _                                         = extractLinks tokens
-      in checkTag token
+extractLinks (token:tokens) = case token of
+      TagOpen "a" attributes -> case extractTitleFromLink attributes of
+            Just wikiLink -> wikiLink:extractLinks tokens
+            otherwise     -> extractLinks tokens
+      otherwise              -> extractLinks tokens
+
+-- Extract title from a list of attributes of a hyperlink tag if it is a wikipedia link
+extractTitleFromLink :: [Attr] -> Maybe T.Text
+extractTitleFromLink [] = Nothing
+extractTitleFromLink (attribute:attributes) = case attribute of
+      Attr "title" wikiLink -> Just wikiLink
+      otherwise             -> extractTitleFromLink attributes
 
 -- Extract all the links present in the first N number of paragraphs in one go
 extractLinksFast :: (Eq a, Fractional a) => [Token] -> a -> Bool -> [T.Text]
 extractLinksFast [] _ _ = []
 extractLinksFast _ 0 _  = []
-extractLinksFast (token:tokens) num False =
-      let
-        checkTag (TagOpen "p" _) = extractLinksFast tokens num True
-        checkTag _               = extractLinksFast tokens num False
-      in checkTag token
-extractLinksFast (token:tokens) num True
-      | token == TagClose "p" = extractLinksFast tokens (num - 1) False
-      | otherwise             =
-        let
-          checkTag (TagOpen "a" ((Attr "title" wikiLink):_)) = wikiLink:extractLinksFast tokens num True
-          checkTag _                                         = extractLinksFast tokens num True
-        in checkTag token
+extractLinksFast (token:tokens) num False = case token of
+      TagOpen "p" _ -> extractLinksFast tokens num True
+      otherwise     -> extractLinksFast tokens num False
+extractLinksFast (token:tokens) num True = case token of
+      TagClose "p" -> extractLinksFast tokens (num - 1) False
+      otherwise    -> case token of
+            TagOpen "a" attributes -> case extractTitleFromLink attributes of
+                  Just wikiLink -> wikiLink:extractLinksFast tokens num True
+                  otherwise     -> extractLinksFast tokens num True
+            otherwise              -> extractLinksFast tokens num True
 
 -- Extract all the links present in all the paragraphs in one go
 extractAllLinksFast :: [Token] -> Bool -> [T.Text]
