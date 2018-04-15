@@ -1,35 +1,17 @@
-#!/usr/bin/env stack
--- stack script --resolver lts-8.22
-import           Data.Aeson.Parser           (json)
-import           Data.Conduit                (($$), connect)
-import           Data.Conduit.Attoparsec     (sinkParser)
-import           Network.HTTP.Client
-import           Network.HTTP.Client.Conduit (bodyReaderSource)
-import           Network.HTTP.Client.TLS     (tlsManagerSettings)
-import           Network.HTTP.Types.Status   (statusCode)
-
-main :: IO ()
-main = do
-    manager <- newManager tlsManagerSettings
-
-    request <- parseRequest "https://en.wikipedia.org/w/api.php?format=json&action=parse&page=pizza&prop=text&section=0&redirects=1"
-
-    v <- withResponse request manager $ \response -> do
-        putStrLn $ "The status code was: " ++
-                   show (statusCode $ responseStatus response)
-
-        value <- bodyReaderSource (responseBody response) `connect` sinkParser json
-        return value
-    print v
+import WikiApiService (apiRequest)
+import WikiParser (getWikiTitle, getWikiLinks, getWikiText, getRandomWiki, WikiText(..), WikiLinks(..))
 
 
--- format = if (formatW params) == "" then [] else [("format", formatW params)]
--- action = if (actionW params) == "" then [] else [("action", actionW params)]
--- prop = if (propW params) == "" then [] else [("prop", propW params)]
--- section = if (sectionW params) == "" then [] else [("section", sectionW params)]
--- page = if (pageW params) == "" then [] else [("page", pageW params)]
--- titles = if (titlesW params) == "" then [] else [("title", titlesW params)]
--- list = if (listW params) == "" then [] else [("list", listW params)]
--- redirects = if (redirectsW params) == "" then [] else [("redirects", redirectsW params)]
--- rnlimit = if (rnlimitW params) == "" then [] else [("rnlimit", rnlimitW params)]
--- rnnamespace = if (rnnamespaceW params) == "" then [] else [("rnnamespace", rnnamespaceW params)]
+testapi :: IO ()
+testapi = do
+  jsonData <- apiRequest [("format", "json"), ("action", "query"), ("list", "random"), ("rnlimit", "1"), ("rnnamespace", "0")]
+  -- jsonData <- apiRequest [("format", "json"), ("action", "parse"), ("prop", "text"), ("section", "0"), ("page", "christmas day"), ("redirects", "1")]
+  -- jsonData <- apiRequest [("format", "json"), ("action", "query"), ("titles", "christmas day"), ("redirects", "1")]
+  print jsonData
+  let title = getRandomWiki $ Just jsonData
+  print title
+  -- let textData = case getWikiLinks $ Just jsonData of
+  --               Nothing -> WikiLinks []
+  --               Just t  -> t
+  -- print textData
+  -- print $ length textData

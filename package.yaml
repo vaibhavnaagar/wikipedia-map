@@ -39,6 +39,7 @@ dependencies:
 - wai
 - warp
 - transformers
+- vector
 
 library:
   source-dirs: src

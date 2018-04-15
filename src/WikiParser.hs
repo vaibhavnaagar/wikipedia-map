@@ -3,9 +3,9 @@ module WikiParser
     ( getWikiTitle
     , getWikiText
     , getWikiLinks
+    , getRandomWiki
     , parseHtml
     , WikiPage(..)
-    , WikiTitle(..)
     , WikiText(..)
     , WikiLinks(..)
     ) where
@@ -13,6 +13,7 @@ module WikiParser
 import qualified Data.Aeson.Types as AT
 import qualified Data.HashMap.Strict as HS
 import qualified Data.Text as T
+import qualified Data.Vector as V
 import GHC.Generics (Generic)
 import Data.Aeson (ToJSON, FromJSON)
 import Text.HTML.Parser (parseTokens, Token(..), Attr(..))
@@ -29,24 +30,22 @@ data WikiPage = WikiPage
 instance FromJSON WikiPage
 instance ToJSON WikiPage
 
-newtype WikiTitle = WikiTitle T.Text deriving (Generic, Show)
 newtype WikiText  = WikiText T.Text deriving (Generic, Show)
 newtype WikiLinks = WikiLinks [T.Text] deriving (Generic, Show)
 
-instance ToJSON WikiTitle
 instance ToJSON WikiText
 instance ToJSON WikiLinks
 
 
 -- Get the accurate title of a page by querying wikipedia API from json data
-getWikiTitle :: Maybe AT.Value -> Maybe WikiTitle
+getWikiTitle :: Maybe AT.Value -> Maybe WikiText
 getWikiTitle jsonData = do
   AT.Object queryValPair <- jsonData
   AT.Object pageValPair  <- HS.lookup "query" queryValPair
   AT.Object idValPair    <- HS.lookup "pages" pageValPair
   let AT.Object titleValPair = snd $ head $ HS.toList idValPair
   AT.String title        <- HS.lookup "title" titleValPair
-  return $ WikiTitle title
+  return $ WikiText title
 
 --  Get HTML text of a wikipedia page from json data based on standard query
 getWikiText :: Maybe AT.Value -> Maybe WikiText
@@ -65,6 +64,15 @@ getWikiLinks jsonData = do
   return $ WikiLinks $ extractAllLinksFast tokens False
   -- return $ extractLinksFast tokens 2 False
   -- return $ extractLinks $ extractAllParagraphs tokens False
+
+getRandomWiki :: Maybe AT.Value -> Maybe WikiText
+getRandomWiki jsonData = do
+  AT.Object queryValPair <- jsonData
+  AT.Object random       <- HS.lookup "query" queryValPair
+  AT.Array pageList      <- HS.lookup "random" random
+  let AT.Object pages    = V.head pageList
+  AT.String title        <- HS.lookup "title" pages
+  return $ WikiText title
 
 -- Parse the HTML text of a wikipedia page and convert each element into token
 parseHtml :: Maybe T.Text -> Maybe [Token]
