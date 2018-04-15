@@ -3,6 +3,7 @@ module WikiParser
     ( getWikiTitle
     , getWikiText
     , getWikiLinks
+    , getFirstNWikiLinks
     , getRandomWiki
     , parseHtml
     , WikiPage(..)
@@ -67,6 +68,15 @@ getWikiLinks jsonData = do
   -- return $ WikiLinks $ extractLinksFast tokens 2 False
   -- return $ WikiLinks $ extractLinks $ extractAllParagraphs tokens False
 
+-- Get first N wiki links present in paragraphs only in the form of accurate wiki titles
+getFirstNWikiLinks :: Maybe AT.Value -> Int -> Maybe WikiLinks
+getFirstNWikiLinks jsonData n = do
+  WikiText htmlText <- getWikiText jsonData
+  tokens            <- parseHtml $ Just htmlText
+  -- return $ WikiLinks $ take n $ extractAllLinksFast tokens
+  return $ WikiLinks $ take n $ extractAllNonParenLinks tokens
+
+--  Get a random wiki title from the jsonData (specific to a query)
 getRandomWiki :: Maybe AT.Value -> Maybe WikiText
 getRandomWiki jsonData = do
   AT.Object queryValPair <- jsonData
