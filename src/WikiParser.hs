@@ -61,9 +61,11 @@ getWikiLinks :: Maybe AT.Value -> Maybe WikiLinks
 getWikiLinks jsonData = do
   WikiText htmlText <- getWikiText jsonData
   tokens            <- parseHtml $ Just htmlText
-  return $ WikiLinks $ extractAllLinksFast tokens False
-  -- return $ extractLinksFast tokens 2 False
-  -- return $ extractLinks $ extractAllParagraphs tokens False
+  -- return $ WikiLinks $ extractAllLinksFast tokens
+  return $ WikiLinks $ extractAllNonParenLinks tokens
+  -- return $ WikiLinks $ extractNonParenLinks tokens 1 False 0
+  -- return $ WikiLinks $ extractLinksFast tokens 2 False
+  -- return $ WikiLinks $ extractLinks $ extractAllParagraphs tokens False
 
 getRandomWiki :: Maybe AT.Value -> Maybe WikiText
 getRandomWiki jsonData = do
@@ -92,9 +94,9 @@ extractParagraphs (token:tokens) num True = case token of
       otherwise    -> token:(extractParagraphs tokens num True)
 
 -- Extract all the paragraphs in the parsed HTML text
-extractAllParagraphs :: [Token] -> Bool -> [Token]
-extractAllParagraphs tokens bool = let inf = 1/0
-                                   in extractParagraphs tokens inf bool
+extractAllParagraphs :: [Token] -> [Token]
+extractAllParagraphs tokens = let inf = 1/0
+                              in extractParagraphs tokens inf False
 
 -- Extract all the wiki links from the parsed HTML text
 extractLinks :: [Token] -> [T.Text]
@@ -128,6 +130,38 @@ extractLinksFast (token:tokens) num True = case token of
             otherwise              -> extractLinksFast tokens num True
 
 -- Extract all the links present in all the paragraphs in one go
-extractAllLinksFast :: [Token] -> Bool -> [T.Text]
-extractAllLinksFast tokens bool = let inf = 1/0
-                                   in extractLinksFast tokens inf bool
+extractAllLinksFast :: [Token] -> [T.Text]
+extractAllLinksFast tokens =  let inf = 1/0
+                              in extractLinksFast tokens inf False
+
+
+-- Extract all the links (not in any parenthesis) present in the first N number of paragraphs in one go
+--  extractNonParenLinks :: tokens -> numParagraphs -> insideParagraph -> numOpenParenthesis -> List of links
+extractNonParenLinks :: (Eq a, Fractional a) => [Token] -> a -> Bool -> Int -> [T.Text]
+extractNonParenLinks [] _ _ _ = []
+extractNonParenLinks _ 0 _ _ = []
+extractNonParenLinks (token:tokens) num False numParen = case token of
+     TagOpen "p" _ -> extractNonParenLinks tokens num True numParen
+     ContentText c -> extractNonParenLinks tokens num False $ numOpenParen c numParen
+     otherwise     -> extractNonParenLinks tokens num False numParen
+extractNonParenLinks (token:tokens) num True numParen = case token of
+     TagClose "p"  -> extractNonParenLinks tokens (num - 1) False numParen
+     ContentText c -> extractNonParenLinks tokens num True $ numOpenParen c numParen
+     otherwise     -> if (numParen > 0) then extractNonParenLinks tokens num True numParen else case token of
+           TagOpen "a" attributes -> case extractTitleFromLink attributes of
+                 Just wikiLink -> wikiLink:extractNonParenLinks tokens num True numParen
+                 otherwise     -> extractNonParenLinks tokens num True numParen
+           otherwise              -> extractNonParenLinks tokens num True numParen
+
+-- Extract all the links (not in any parenthesis) present in all the paragraphs in one go
+extractAllNonParenLinks :: [Token] -> [T.Text]
+extractAllNonParenLinks tokens =  let inf = 1/0
+                                  in extractNonParenLinks tokens inf False 0
+
+-- Count number of open parenthesis in a text
+numOpenParen :: T.Text -> Int -> Int
+numOpenParen "" count = count
+numOpenParen str count
+      | T.head str == '(' = numOpenParen (T.tail str) (count + 1)
+      | T.head str == ')' = if (count == 0) then numOpenParen (T.tail str) 0 else numOpenParen (T.tail str) (count - 1)
+      | otherwise         = numOpenParen (T.tail str) count
