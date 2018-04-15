@@ -1,6 +1,8 @@
 {-# LANGUAGE OverloadedStrings, DataKinds, TypeOperators  #-}
 module ServeApi
     ( app
+    , generateQuery
+    , WikiParams(..)
     ) where
 
 import qualified Data.Text as T

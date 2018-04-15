@@ -50,7 +50,7 @@ apiRequest queries = do
   request <- generateRequest apiEndpoint queries
   manager <- newManager tlsManagerSettings
   jsonResponse <- let getResponse response = do
-                        putStrLn $ "The status code was: " ++ show (statusCode $ responseStatus response)
+                        -- putStrLn $ "The status code was: " ++ show (statusCode $ responseStatus response)
                         value <- bodyReaderSource (responseBody response) `connect` sinkParser json
                         return value
                   in withResponse request manager getResponse
