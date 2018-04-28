@@ -15,6 +15,7 @@ import qualified Data.Aeson.Types as AT
 import qualified Data.HashMap.Strict as HS
 import qualified Data.Text as T
 import qualified Data.Vector as V
+import Data.List (nub)
 import GHC.Generics (Generic)
 import Data.Aeson (ToJSON, FromJSON)
 import Text.HTML.Parser (parseTokens, Token(..), Attr(..))
@@ -166,7 +167,14 @@ extractNonParenLinks (token:tokens) num True numParen = case token of
 -- Extract all the links (not in any parenthesis) present in all the paragraphs in one go
 extractAllNonParenLinks :: [Token] -> [T.Text]
 extractAllNonParenLinks tokens =  let inf = 1/0
-                                  in extractNonParenLinks tokens inf False 0
+                                  in nub $ extractNonParenLinks tokens inf False 0
+
+
+-- Remove duplicate links from the list
+removeDups :: [T.Text] -> [T.Text]
+removeDups = foldl (\ links link -> if link `elem` links
+                                    then links
+                                    else links ++ [link]) []
 
 -- Count number of open parenthesis in a text
 numOpenParen :: T.Text -> Int -> Int
